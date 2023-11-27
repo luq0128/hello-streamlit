@@ -12,17 +12,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
-import textwrap
-
 import streamlit as st
+import pandas as pd
+from llama_index.indices.struct_store import GPTPandasIndex
+import os
+import re
+import json
+
+st.markdown("""
+          <style>
+          footer {visibility: hidden;}
+          </style>""", unsafe_allow_html=True)
+
+with st.sidebar:
+        #openai_api_key = st.text_input('Your OpenAI API KEY', type="password")
+        os.environ['OPENAI_API_KEY'] = st.text_input('Your OpenAI API KEY', type="password")
 
 
-def show_code(demo):
-    """Showing the code of the demo."""
-    show_code = st.sidebar.checkbox("Show code", True)
-    if show_code:
-        # Showing the code of the demo.
-        st.markdown("## Code")
-        sourcelines, _ = inspect.getsourcelines(demo)
-        st.code(textwrap.dedent("".join(sourcelines[1:])))
+pattern = r"\bgraph\b"
+
+st.title("Greenlync Zulu")
+
+file = st.file_uploader("Upload csv file", type=["csv"])
+
+if file:
+    df = pd.read_csv(file)
+    index = GPTPandasIndex(
+        df=df,
+    )
+    query_engine = index.as_query_engine(
+        verbose=True
+    )
+    text = st.text_input("Enter your query:")
+
+    if text:
+        if re.search(pattern, text):
+            query = text.replace("create a graph of", "")
+            query = query + " in json of only required columns"
+            response = query_engine.query(query)
+            response = str(response)
+            data = json.loads(response)
+            graph = pd.DataFrame(data)
+
+            st.markdown("<b>Response:</b>", unsafe_allow_html=True)
+            st.bar_chart(graph)
+        else:
+            response = query_engine.query(text)
+            st.markdown("<b>Response:</b>", unsafe_allow_html=True)
+            st.text(response)
